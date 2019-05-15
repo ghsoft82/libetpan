@@ -62,3 +62,8 @@ You can use flag --with-poll for using poll() instead of select() for checking c
 ## More information
 
 See http://etpan.org/libetpan.html for more information and examples.
+
+## This Fork ##
+Added support for the following:
+
+- Sending SNIPPET command with FETCH
