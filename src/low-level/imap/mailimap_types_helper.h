@@ -250,6 +250,16 @@ mailimap_fetch_att_new_internaldate(void);
 
 
 /*
+ this function creates a mailimap_fetch_att structure to request
+ the snippet of a message
+ */
+
+LIBETPAN_EXPORT
+struct mailimap_fetch_att *
+mailimap_fetch_att_new_snippet(void);
+
+
+/*
   this function creates a mailimap_fetch_att structure to request
   text part of a message
 */

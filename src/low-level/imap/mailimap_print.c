@@ -733,6 +733,14 @@ static void mailimap_msg_att_static_print(struct mailimap_msg_att_static *
     printf("}\n");
     break;
 
+  case MAILIMAP_MSG_ATT_SNIPPET:
+    print_indent();
+    printf("snippet {\n");
+    printf("%s\n", msg_att_static->att_data.att_snippet);
+    print_indent();
+    printf("}\n");
+    break;
+
   case MAILIMAP_MSG_ATT_RFC822:
     print_indent();
     printf("rfc822 {\n");

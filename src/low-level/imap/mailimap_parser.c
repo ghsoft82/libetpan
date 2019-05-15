@@ -7930,6 +7930,63 @@ mailimap_msg_att_internaldate_parse(mailstream * fd, MMAPString * buffer, struct
 }
 
 /*
+ "SNIPPET" SP nstring
+ */
+
+static int
+mailimap_msg_att_snippet_parse(mailstream * fd, MMAPString * buffer, struct mailimap_parser_context * parser_ctx,
+                                     size_t * indx, char ** result,
+                                     size_t * result_len,
+                                     size_t progr_rate,
+                                     progress_function * progr_fun)
+{
+  size_t cur_token;
+  char * snippet;
+  int r;
+  size_t length;
+
+  cur_token = * indx;
+
+  r = mailimap_token_case_insensitive_parse(fd, buffer, &cur_token,
+                                            "SNIPPET");
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_space_parse(fd, buffer, &cur_token);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_oparenth_parse(fd, buffer, parser_ctx, &cur_token);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_token_case_insensitive_parse(fd, buffer, &cur_token,
+                                            "FUZZY");
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_space_parse(fd, buffer, &cur_token);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_nstring_parse(fd, buffer, parser_ctx, &cur_token, &snippet, &length,
+                             progr_rate, progr_fun);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_cparenth_parse(fd, buffer, parser_ctx, &cur_token);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  * result = snippet;
+  if (result_len != NULL)
+    * result_len = length;
+  * indx = cur_token;
+
+  return MAILIMAP_NO_ERROR;
+}
+
+/*
   "RFC822" SP nstring
 */
 
@@ -8369,6 +8426,7 @@ mailimap_msg_att_static_parse_progress(mailstream * fd, MMAPString * buffer, str
   size_t cur_token;
   struct mailimap_envelope * env;
   struct mailimap_date_time * internal_date;
+  char * snippet;
   char * rfc822;
   char * rfc822_header;
   char * rfc822_text;
@@ -8387,6 +8445,7 @@ mailimap_msg_att_static_parse_progress(mailstream * fd, MMAPString * buffer, str
 
   env = NULL;
   internal_date = NULL;
+  snippet = NULL;
   rfc822 = NULL;
   rfc822_header = NULL;
   rfc822_text = NULL;
@@ -8410,6 +8469,15 @@ mailimap_msg_att_static_parse_progress(mailstream * fd, MMAPString * buffer, str
 					    progr_rate, progr_fun);
     if (r == MAILIMAP_NO_ERROR)
       type = MAILIMAP_MSG_ATT_INTERNALDATE;
+  }
+
+  if (r == MAILIMAP_ERROR_PARSE) {
+    r = mailimap_msg_att_rfc822_parse_progress(fd, buffer, parser_ctx, &cur_token,
+                                               &rfc822, &length,
+                                               progr_rate, progr_fun,
+                                               body_progr_fun, items_progr_fun, context, msg_att_handler, msg_att_context);
+    if (r == MAILIMAP_NO_ERROR)
+      type = MAILIMAP_MSG_ATT_RFC822;
   }
   
   if (r == MAILIMAP_ERROR_PARSE) {
@@ -8469,6 +8537,14 @@ mailimap_msg_att_static_parse_progress(mailstream * fd, MMAPString * buffer, str
   }
 
   if (r == MAILIMAP_ERROR_PARSE) {
+    r = mailimap_msg_att_snippet_parse(fd, buffer, parser_ctx, &cur_token,
+                                             &snippet, &length,
+                                             progr_rate, progr_fun);
+    if (r == MAILIMAP_NO_ERROR)
+      type = MAILIMAP_MSG_ATT_SNIPPET;
+  }
+
+  if (r == MAILIMAP_ERROR_PARSE) {
     r = mailimap_msg_att_uid_parse(fd, buffer, parser_ctx, &cur_token,
 				   &uid);
     if (r == MAILIMAP_NO_ERROR)
@@ -8484,7 +8560,7 @@ mailimap_msg_att_static_parse_progress(mailstream * fd, MMAPString * buffer, str
 					       rfc822, rfc822_header,
 					       rfc822_text, length,
 					       rfc822_size, bodystructure,
-					       body, body_section, uid);
+					       body, body_section, snippet, uid);
   if (msg_att_static == NULL) {
     res = MAILIMAP_ERROR_MEMORY;
     goto free;
@@ -8512,6 +8588,8 @@ mailimap_msg_att_static_parse_progress(mailstream * fd, MMAPString * buffer, str
     mailimap_msg_att_body_free(body);
   if (body_section)
     mailimap_msg_att_body_section_free(body_section);
+  if (snippet)
+    mailimap_msg_att_snippet_free(snippet);
  err:
   return res;
 }

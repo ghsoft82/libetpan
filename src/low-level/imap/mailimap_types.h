@@ -2049,7 +2049,8 @@ enum {
   MAILIMAP_MSG_ATT_BODYSTRUCTURE, /* this is the MIME description of the
                                      message with additional information */
   MAILIMAP_MSG_ATT_BODY_SECTION,  /* this is a MIME part content */
-  MAILIMAP_MSG_ATT_UID            /* this is the message unique identifier */
+  MAILIMAP_MSG_ATT_UID,           /* this is the message unique identifier */
+  MAILIMAP_MSG_ATT_SNIPPET        /* this is the message snippet */
 };
 
 /*
@@ -2110,6 +2111,7 @@ struct mailimap_msg_att_static {
     struct mailimap_body * att_bodystructure; /* can be NULL */
     struct mailimap_body * att_body;          /* can be NULL */
     struct mailimap_msg_att_body_section * att_body_section; /* can be NULL */
+    char * att_snippet;
     uint32_t att_uid;
   } att_data;
 };
@@ -2126,6 +2128,7 @@ mailimap_msg_att_static_new(int att_type, struct mailimap_envelope * att_env,
     struct mailimap_body * att_bodystructure,
     struct mailimap_body * att_body,
     struct mailimap_msg_att_body_section * att_body_section,
+    char * att_snippet,
     uint32_t att_uid);
 
 LIBETPAN_EXPORT
@@ -2796,7 +2799,8 @@ enum {
   MAILIMAP_FETCH_ATT_BODY_SECTION,      /* to fetch a given part */
   MAILIMAP_FETCH_ATT_BODY_PEEK_SECTION, /* to fetch a given part without
                                            marking the message as read */
-  MAILIMAP_FETCH_ATT_EXTENSION
+  MAILIMAP_FETCH_ATT_EXTENSION,
+  MAILIMAP_FETCH_ATT_SNIPPET            /* to fetch the snippet */
 };
 
 
@@ -3263,6 +3267,10 @@ void mailimap_msg_att_envelope_free(struct mailimap_envelope * env);
 LIBETPAN_EXPORT
 void
 mailimap_msg_att_internaldate_free(struct mailimap_date_time * date_time);
+
+LIBETPAN_EXPORT
+void
+mailimap_msg_att_snippet_free(char * snippet);
 
 LIBETPAN_EXPORT
 void

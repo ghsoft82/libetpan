@@ -1292,6 +1292,9 @@ static int mailimap_fetch_att_send(mailstream * fd,
   case MAILIMAP_FETCH_ATT_FLAGS:
     return mailimap_token_send(fd, "FLAGS");
 
+  case MAILIMAP_FETCH_ATT_SNIPPET:
+    return mailimap_token_send(fd, "SNIPPET");
+
   case MAILIMAP_FETCH_ATT_INTERNALDATE:
     return mailimap_token_send(fd, "INTERNALDATE");
 

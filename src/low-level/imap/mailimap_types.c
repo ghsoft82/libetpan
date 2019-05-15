@@ -1824,6 +1824,13 @@ mailimap_msg_att_internaldate_free(struct mailimap_date_time * date_time)
 
 LIBETPAN_EXPORT
 void
+mailimap_msg_att_snippet_free(char * snippet)
+{
+  mailimap_nstring_free(snippet);
+}
+
+LIBETPAN_EXPORT
+void
 mailimap_msg_att_rfc822_free(char * str)
 {
   mailimap_nstring_free(str);
@@ -1872,6 +1879,7 @@ mailimap_msg_att_static_new(int att_type, struct mailimap_envelope * att_env,
     struct mailimap_body * att_bodystructure,
     struct mailimap_body * att_body,
     struct mailimap_msg_att_body_section * att_body_section,
+    char * att_snippet,
     uint32_t att_uid)
 {
   struct mailimap_msg_att_static * item;
@@ -1915,6 +1923,9 @@ mailimap_msg_att_static_new(int att_type, struct mailimap_envelope * att_env,
   case MAILIMAP_MSG_ATT_UID:
     item->att_data.att_uid = att_uid;
     break;
+  case MAILIMAP_MSG_ATT_SNIPPET:
+    item->att_data.att_snippet = att_snippet;
+    break;
   }
 
   return item;
@@ -1936,6 +1947,10 @@ mailimap_msg_att_static_free(struct mailimap_msg_att_static * item)
   case MAILIMAP_MSG_ATT_RFC822:
     if (item->att_data.att_rfc822.att_content != NULL)
       mailimap_msg_att_rfc822_free(item->att_data.att_rfc822.att_content);
+    break;
+  case MAILIMAP_MSG_ATT_SNIPPET:
+    if (item->att_data.att_snippet != NULL)
+      mailimap_msg_att_snippet_free(item->att_data.att_snippet);
     break;
   case MAILIMAP_MSG_ATT_RFC822_HEADER:
     if (item->att_data.att_rfc822_header.att_content != NULL)

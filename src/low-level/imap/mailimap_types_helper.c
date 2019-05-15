@@ -520,6 +520,13 @@ mailimap_fetch_att_new_internaldate(void)
 
 LIBETPAN_EXPORT
 struct mailimap_fetch_att *
+mailimap_fetch_att_new_snippet(void)
+{
+  return mailimap_fetch_att_new(MAILIMAP_FETCH_ATT_SNIPPET, NULL, 0, 0, NULL);
+}
+
+LIBETPAN_EXPORT
+struct mailimap_fetch_att *
 mailimap_fetch_att_new_rfc822(void)
 {
   return mailimap_fetch_att_new(MAILIMAP_FETCH_ATT_RFC822, NULL, 0, 0, NULL);
