@@ -41,9 +41,11 @@
 #include "mailimap_parser.h"
 #include "mailimap_keywords.h"
 #include "mailimap_sender.h"
+#include "uidplus_parser.h"
 
 enum {
-  MAILIMAP_SORT_TYPE_SORT
+  MAILIMAP_SORT_TYPE_SORT,
+  MAILIMAP_SORT_TYPE_ESORT
 };
 
 
@@ -55,8 +57,29 @@ int
 mailimap_uid_sort_send(mailstream * fd, const char * charset,
                        struct mailimap_sort_key * key, struct mailimap_search_key * searchkey);
 
+int
+mailimap_esort_send(mailstream * fd, const char * charset, const char * esearchReturnStr,
+                   struct mailimap_sort_key * key, struct mailimap_search_key * searchkey);
+
+int
+mailimap_uid_esort_send(mailstream * fd, const char * charset, const char * esearchReturnStr,
+                       struct mailimap_sort_key * key, struct mailimap_search_key * searchkey);
+
 int mailimap_sort_key_send(mailstream * fd,
                            struct mailimap_sort_key * key);
+
+int mailimap_esort_key_send(mailstream * fd,
+                           struct mailimap_sort_key * key);
+
+static int
+mailimap_esort_partial_parse(mailstream * fd, MMAPString * buffer, struct mailimap_parser_context * parser_ctx,
+                             size_t * indx,
+                             struct mailimap_set ** result);
+
+static int
+mailimap_esort_not_partial_parse(mailstream * fd, MMAPString * buffer, struct mailimap_parser_context * parser_ctx,
+                             size_t * indx,
+                             struct mailimap_set ** result);
 
 static int
 mailimap_sort_extension_parse(int calling_parser, mailstream * fd,
@@ -74,6 +97,24 @@ struct mailimap_extension_api mailimap_extension_sort = {
   /* extension_id */  MAILIMAP_EXTENSION_SORT,
   /* parser */        mailimap_sort_extension_parse,
   /* free */          mailimap_sort_extension_data_free
+};
+
+static int
+mailimap_esort_extension_parse(int calling_parser, mailstream * fd,
+                              MMAPString * buffer, struct mailimap_parser_context * parser_ctx, size_t * indx,
+                              struct mailimap_extension_data ** result,
+                              size_t progr_rate, progress_function * progr_fun);
+
+
+static void
+mailimap_esort_extension_data_free(struct mailimap_extension_data * ext_data);
+
+LIBETPAN_EXPORT
+struct mailimap_extension_api mailimap_extension_esort = {
+  /* name */          "ESORT",
+  /* extension_id */  MAILIMAP_EXTENSION_ESORT,
+  /* parser */        mailimap_esort_extension_parse,
+  /* free */          mailimap_esort_extension_data_free
 };
 
 
@@ -157,6 +198,84 @@ mailimap_sort(mailimap * session, const char * charset,
 
 LIBETPAN_EXPORT
 int
+mailimap_esort(mailimap * session, const char * charset, const char * esearchReturnStr,
+                   struct mailimap_sort_key * key, struct mailimap_search_key * searchkey,
+                   struct mailimap_set ** result)
+{
+  struct mailimap_response * response;
+  int r;
+  int error_code;
+  clistiter * cur = NULL;
+  struct mailimap_set * sort_result = NULL;
+
+  if (session->imap_state != MAILIMAP_STATE_SELECTED)
+    return MAILIMAP_ERROR_BAD_STATE;
+
+  r = mailimap_send_current_tag(session);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_esort_send(session->imap_stream, charset, esearchReturnStr, key, searchkey);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_crlf_send(session->imap_stream);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  if (mailstream_flush(session->imap_stream) == -1)
+    return MAILIMAP_ERROR_STREAM;
+
+  if (mailimap_read_line(session) == NULL)
+    return MAILIMAP_ERROR_STREAM;
+
+  r = mailimap_parse_response(session, &response);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+
+  for (cur = clist_begin(session->imap_response_info->rsp_extension_list);
+       cur != NULL; cur = clist_next(cur)) {
+    struct mailimap_extension_data * ext_data;
+
+    ext_data = (struct mailimap_extension_data *) clist_content(cur);
+    if (ext_data->ext_extension->ext_id == MAILIMAP_EXTENSION_ESORT) {
+      if (sort_result == NULL) {
+        sort_result = ext_data->ext_data;
+        ext_data->ext_data = NULL;
+        ext_data->ext_type = -1;
+      }
+    }
+  }
+
+  clist_foreach(session->imap_response_info->rsp_extension_list,
+                (clist_func) mailimap_extension_data_free, NULL);
+  clist_free(session->imap_response_info->rsp_extension_list);
+  session->imap_response_info->rsp_extension_list = NULL;
+
+  if (sort_result == NULL) {
+    return MAILIMAP_ERROR_EXTENSION;
+  }
+
+  error_code = response->rsp_resp_done->rsp_data.rsp_tagged->rsp_cond_state->rsp_type;
+  switch (error_code) {
+    case MAILIMAP_RESP_COND_STATE_OK:
+      break;
+
+    default:
+      mailimap_set_free(sort_result);
+      return MAILIMAP_ERROR_EXTENSION;
+  }
+
+  mailimap_response_free(response);
+
+  * result = sort_result;
+
+  return MAILIMAP_NO_ERROR;
+}
+
+LIBETPAN_EXPORT
+int
 mailimap_uid_sort(mailimap * session, const char * charset,
                   struct mailimap_sort_key * key, struct mailimap_search_key * searchkey,
                   clist ** result)
@@ -225,6 +344,84 @@ mailimap_uid_sort(mailimap * session, const char * charset,
       mailimap_search_result_free(sort_result);
       return MAILIMAP_ERROR_EXTENSION;
   }
+
+  mailimap_response_free(response);
+
+  * result = sort_result;
+
+  return MAILIMAP_NO_ERROR;
+}
+
+LIBETPAN_EXPORT
+int
+mailimap_uid_esort(mailimap * session, const char * charset, const char * esearchReturnStr,
+                  struct mailimap_sort_key * key, struct mailimap_search_key * searchkey,
+                  struct mailimap_set ** result)
+{
+  struct mailimap_response * response;
+  int r;
+  int error_code;
+  clistiter * cur = NULL;
+  struct mailimap_set * sort_result = NULL;
+  
+  if (session->imap_state != MAILIMAP_STATE_SELECTED)
+    return MAILIMAP_ERROR_BAD_STATE;
+  
+  r = mailimap_send_current_tag(session);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+  
+  r = mailimap_uid_esort_send(session->imap_stream, charset, esearchReturnStr, key, searchkey);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+  
+  r = mailimap_crlf_send(session->imap_stream);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+  
+  if (mailstream_flush(session->imap_stream) == -1)
+    return MAILIMAP_ERROR_STREAM;
+  
+  if (mailimap_read_line(session) == NULL)
+    return MAILIMAP_ERROR_STREAM;
+  
+  r = mailimap_parse_response(session, &response);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+  
+  
+  for (cur = clist_begin(session->imap_response_info->rsp_extension_list);
+       cur != NULL; cur = clist_next(cur)) {
+    struct mailimap_extension_data * ext_data;
+
+    ext_data = (struct mailimap_extension_data *) clist_content(cur);
+    if (ext_data->ext_extension->ext_id == MAILIMAP_EXTENSION_ESORT) {
+      if (sort_result == NULL) {
+        sort_result = ext_data->ext_data;
+        ext_data->ext_data = NULL;
+        ext_data->ext_type = -1;
+      }
+    }
+  }
+
+  clist_foreach(session->imap_response_info->rsp_extension_list,
+                (clist_func) mailimap_extension_data_free, NULL);
+  clist_free(session->imap_response_info->rsp_extension_list);
+  session->imap_response_info->rsp_extension_list = NULL;
+
+  if (sort_result == NULL) {
+    return MAILIMAP_ERROR_EXTENSION;
+  }
+
+  error_code = response->rsp_resp_done->rsp_data.rsp_tagged->rsp_cond_state->rsp_type;
+  switch (error_code) {
+    case MAILIMAP_RESP_COND_STATE_OK:
+      break;
+      
+    default:
+      mailimap_set_free(sort_result);
+      return MAILIMAP_ERROR_EXTENSION;
+  }
   
   mailimap_response_free(response);
   
@@ -240,6 +437,62 @@ void mailimap_sort_result_free(clist * search_result)
   clist_free(search_result);
 }
 
+int
+mailimap_esort_send(mailstream * fd, const char * charset, const char * esearchReturnStr,
+                   struct mailimap_sort_key * key, struct mailimap_search_key * searchkey)
+{
+  int r;
+
+  r = mailimap_token_send(fd, "SORT");
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_space_send(fd);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_token_send(fd, esearchReturnStr);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_space_send(fd);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_oparenth_send(fd);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_sort_key_send(fd, key);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_cparenth_send(fd);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  if (charset != NULL) {
+    r = mailimap_space_send(fd);
+    if (r != MAILIMAP_NO_ERROR)
+      return r;
+    r = mailimap_astring_send(fd, charset);
+    if (r != MAILIMAP_NO_ERROR)
+      return r;
+  }
+
+  r = mailimap_space_send(fd);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  if (searchkey != NULL) {
+    r = mailimap_search_key_send(fd, searchkey);
+    if (r != MAILIMAP_NO_ERROR)
+      return r;
+  }
+
+
+  return MAILIMAP_NO_ERROR;
+}
 
 int
 mailimap_sort_send(mailstream * fd, const char * charset,
@@ -288,6 +541,24 @@ mailimap_sort_send(mailstream * fd, const char * charset,
   
   
   return MAILIMAP_NO_ERROR;
+}
+
+int
+mailimap_uid_esort_send(mailstream * fd, const char * charset, const char * esearchReturnStr,
+                       struct mailimap_sort_key * key, struct mailimap_search_key * searchkey)
+
+{
+  int r;
+
+  r = mailimap_token_send(fd, "UID");
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_space_send(fd);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  return mailimap_esort_send(fd, charset, esearchReturnStr, key, searchkey);
 }
 
 int
@@ -388,7 +659,234 @@ mailimap_number_list_data_sort_parse(mailstream * fd, MMAPString * buffer, struc
   
   * result = number_list;
   * indx = final_token;
+
+  return MAILIMAP_NO_ERROR;
+}
+
+/*
+ Possible Responses:
+  * ESEARCH (TAG "6") UID ALL 25,24,27,14,16
+  * ESEARCH (TAG "6") UID PARTIAL (1:25 25,24,27,14,16)
+  * ESEARCH (TAG "6") UID COUNT 5
+  * ESEARCH (TAG "6") UID MAX 16
+  * ESEARCH (TAG "6") UID MIN 25
+*/
+
+static int
+mailimap_uid_set_data_esort_parse(mailstream * fd, MMAPString * buffer, struct mailimap_parser_context * parser_ctx,
+                                     size_t * indx,
+                                     struct mailimap_set ** result,
+                                     size_t progr_rate,
+                                     progress_function * progr_fun)
+{
+  size_t cur_token;
+  int r;
+  size_t final_token;
+
+  char * tag;
+  struct mailimap_set * uid_set;
   
+  cur_token = * indx;
+  
+  r = mailimap_token_case_insensitive_parse(fd, buffer, &cur_token, "ESEARCH");
+  if (r != MAILIMAP_NO_ERROR) {
+    return r;
+  }
+  
+  final_token = cur_token;
+  tag = NULL;
+  uid_set = NULL;
+
+  r = mailimap_space_parse(fd, buffer, &cur_token);
+  if (r != MAILIMAP_NO_ERROR) 
+    return r;
+
+  r = mailimap_oparenth_parse(fd, buffer, parser_ctx, &cur_token);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_token_case_insensitive_parse(fd, buffer, &cur_token, "TAG");
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_space_parse(fd, buffer, &cur_token);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_dquote_parse(fd, buffer, parser_ctx, &cur_token);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_tag_parse(fd, buffer, parser_ctx, &cur_token, &tag, progr_rate, progr_fun);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_dquote_parse(fd, buffer, parser_ctx, &cur_token);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_cparenth_parse(fd, buffer, parser_ctx, &cur_token);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_space_parse(fd, buffer, &cur_token);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_token_case_insensitive_parse(fd, buffer, &cur_token, "UID");
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  // When the mailbox is empty and the return is ALL, MAX or MIN, the response is at the last character already, so return empty set.
+  r = mailimap_space_parse(fd, buffer, &cur_token);
+  if (r != MAILIMAP_NO_ERROR) {
+    uid_set = mailimap_set_new_empty();
+    final_token = cur_token;
+    goto parse_complete;
+  }
+
+  // PARTIAL will be returned with paranthesis, others won't, so check it is PARTIAL first
+  r = mailimap_token_case_insensitive_parse(fd, buffer, &cur_token, "PARTIAL");
+  if (r == MAILIMAP_NO_ERROR) {
+    r = mailimap_esort_partial_parse(fd, buffer, parser_ctx, &cur_token, &uid_set);
+    if (r == MAILIMAP_NO_ERROR) {
+      final_token = cur_token;
+    }
+  }
+  // Not PARTIAL, check the others
+  if (r == MAILIMAP_ERROR_PARSE) {
+    r = mailimap_token_case_insensitive_parse(fd, buffer, &cur_token, "ALL");
+    if (r == MAILIMAP_NO_ERROR) {
+      r = mailimap_esort_not_partial_parse(fd, buffer, parser_ctx, &cur_token, &uid_set);
+      if (r == MAILIMAP_NO_ERROR) {
+        final_token = cur_token;
+      }
+    }
+  }
+  if (r == MAILIMAP_ERROR_PARSE) {
+    r = mailimap_token_case_insensitive_parse(fd, buffer, &cur_token, "COUNT");
+    if (r == MAILIMAP_NO_ERROR) {
+      r = mailimap_esort_not_partial_parse(fd, buffer, parser_ctx, &cur_token, &uid_set);
+      if (r == MAILIMAP_NO_ERROR) {
+        final_token = cur_token;
+      }
+    }
+  }
+  if (r == MAILIMAP_ERROR_PARSE) {
+    r = mailimap_token_case_insensitive_parse(fd, buffer, &cur_token, "MAX");
+    if (r == MAILIMAP_NO_ERROR) {
+      r = mailimap_esort_not_partial_parse(fd, buffer, parser_ctx, &cur_token, &uid_set);
+      if (r == MAILIMAP_NO_ERROR) {
+        final_token = cur_token;
+      }
+    }
+  }
+  if (r == MAILIMAP_ERROR_PARSE) {
+    r = mailimap_token_case_insensitive_parse(fd, buffer, &cur_token, "MIN");
+    if (r == MAILIMAP_NO_ERROR) {
+      r = mailimap_esort_not_partial_parse(fd, buffer, parser_ctx, &cur_token, &uid_set);
+      if (r == MAILIMAP_NO_ERROR) {
+        final_token = cur_token;
+      }
+    }
+  }
+
+parse_complete:
+  * result = uid_set;
+  * indx = final_token;
+  
+  return MAILIMAP_NO_ERROR;
+}
+
+static int
+mailimap_esort_partial_parse(mailstream * fd, MMAPString * buffer, struct mailimap_parser_context * parser_ctx,
+                             size_t * indx,
+                             struct mailimap_set ** result)
+{
+  size_t cur_token;
+  int r;
+  struct mailimap_set * uid_set = NULL;
+  uint32_t partial_low;
+  uint32_t partial_high;
+
+  cur_token = * indx;
+
+  r = mailimap_space_parse(fd, buffer, &cur_token);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_oparenth_parse(fd, buffer, parser_ctx, &cur_token);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_nz_number_parse(fd, buffer, parser_ctx, &cur_token, &partial_low);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_colon_parse(fd, buffer, parser_ctx, &cur_token);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_nz_number_parse(fd, buffer, parser_ctx, &cur_token, &partial_high);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_space_parse(fd, buffer, &cur_token);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  // When the mailbox is empty and the return is PARTIAL, NIL will be returned after the PARTIAL limits, so return empty set
+  r = mailimap_token_case_insensitive_parse(fd, buffer, &cur_token, "NIL");
+  if (r == MAILIMAP_NO_ERROR) {
+    uid_set = mailimap_set_new_empty();
+    goto nil_return;
+  }
+
+  r = mailimap_esort_uid_parse(fd, buffer, parser_ctx, &cur_token, &uid_set);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+nil_return:
+  r = mailimap_cparenth_parse(fd, buffer, parser_ctx, &cur_token);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  * result = uid_set;
+  * indx = cur_token;
+
+  return MAILIMAP_NO_ERROR;
+}
+
+static int
+mailimap_esort_not_partial_parse(mailstream * fd, MMAPString * buffer, struct mailimap_parser_context * parser_ctx,
+                             size_t * indx,
+                             struct mailimap_set ** result)
+{
+  size_t cur_token;
+  int r;
+  struct mailimap_set * uid_set = NULL;
+
+  cur_token = * indx;
+
+  r = mailimap_space_parse(fd, buffer, &cur_token);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  // If COUNT is 0, return empty set
+  r = mailimap_token_case_insensitive_parse(fd, buffer, &cur_token, "0");
+  if (r == MAILIMAP_NO_ERROR) {
+    uid_set = mailimap_set_new_empty();
+    goto count_zero;
+  }
+
+  r = mailimap_esort_uid_parse(fd, buffer, parser_ctx, &cur_token, &uid_set);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+count_zero:
+  * result = uid_set;
+  * indx = cur_token;
+
   return MAILIMAP_NO_ERROR;
 }
 
@@ -445,6 +943,63 @@ mailimap_sort_extension_data_free(struct mailimap_extension_data * ext_data)
 {
   if (ext_data->ext_data != NULL) {
     mailimap_mailbox_data_search_free((clist *) ext_data->ext_data);
+  }
+  free(ext_data);
+}
+
+static int
+mailimap_esort_extension_parse(int calling_parser, mailstream * fd,
+                              MMAPString * buffer, struct mailimap_parser_context * parser_ctx, size_t * indx,
+                              struct mailimap_extension_data ** result,
+                              size_t progr_rate, progress_function * progr_fun)
+{
+  int r;
+  struct mailimap_set * uid_set = NULL;
+  struct mailimap_extension_data * ext_data;
+  void * data = NULL;
+  size_t cur_token;
+  
+  cur_token = * indx;
+  
+  switch (calling_parser)
+  {
+    case MAILIMAP_EXTENDED_PARSER_RESPONSE_DATA:
+    case MAILIMAP_EXTENDED_PARSER_MAILBOX_DATA:
+      r = mailimap_uid_set_data_esort_parse(fd, buffer, NULL, &cur_token,
+                                               &uid_set, progr_rate, progr_fun);
+      if (r == MAILIMAP_NO_ERROR) {
+        data = uid_set;
+      }
+      
+      if (r != MAILIMAP_NO_ERROR) {
+        return r;
+      }
+      
+      ext_data = mailimap_extension_data_new(&mailimap_extension_esort,
+                                             MAILIMAP_SORT_TYPE_ESORT, data);
+      if (ext_data == NULL) {
+        if (uid_set != NULL)
+          mailimap_set_free(uid_set);
+        return MAILIMAP_ERROR_MEMORY;
+      }
+      
+      * result = ext_data;
+      * indx = cur_token;
+      
+      return MAILIMAP_NO_ERROR;
+      
+    default:
+      /* return a MAILIMAP_ERROR_PARSE if the extension
+       doesn't extend calling_parser. */
+      return MAILIMAP_ERROR_PARSE;
+  }
+}
+
+static void
+mailimap_esort_extension_data_free(struct mailimap_extension_data * ext_data)
+{
+  if (ext_data->ext_data != NULL) {
+    mailimap_set_free((struct mailimap_set *) ext_data->ext_data);
   }
   free(ext_data);
 }

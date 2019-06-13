@@ -144,6 +144,13 @@ static int mailimap_uid_set_parse(mailstream * fd, MMAPString * buffer, struct m
   return MAILIMAP_NO_ERROR;
 }
 
+int mailimap_esort_uid_parse(mailstream * fd, MMAPString * buffer, struct mailimap_parser_context * parser_ctx,
+                                    size_t * indx,
+                                    struct mailimap_set ** result)
+{
+  return mailimap_uid_set_parse(fd, buffer, parser_ctx, indx, result);
+}
+
 /*
    uid-range       = (uniqueid ":" uniqueid)
                      ; two uniqueid values and all values

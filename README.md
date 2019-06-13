@@ -67,3 +67,4 @@ See http://etpan.org/libetpan.html for more information and examples.
 Added support for the following:
 
 - Sending SNIPPET command with FETCH
+- Added support for Extended Sort ESORT 

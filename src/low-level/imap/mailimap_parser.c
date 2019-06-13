@@ -680,12 +680,6 @@ mailimap_section_text_parse(mailstream * fd, MMAPString * buffer, struct mailima
 			    size_t progr_rate,
 			    progress_function * progr_fun);
 
-
-static int mailimap_tag_parse(mailstream * fd, MMAPString * buffer, struct mailimap_parser_context * parser_ctx,
-			      size_t * indx, char ** result,
-			      size_t progr_rate,
-			      progress_function * progr_fun);
-
 static int mailimap_text_parse(mailstream * fd, MMAPString * buffer, struct mailimap_parser_context * parser_ctx,
 			       size_t * indx, char ** result,
 			       size_t progr_rate,
@@ -10894,7 +10888,7 @@ static int is_tag_char(char ch)
    tag             = 1*<any ASTRING-CHAR except "+">
 */
 
-static int mailimap_tag_parse(mailstream * fd, MMAPString * buffer, struct mailimap_parser_context * parser_ctx,
+int mailimap_tag_parse(mailstream * fd, MMAPString * buffer, struct mailimap_parser_context * parser_ctx,
 			      size_t * indx, char ** result,
 			      size_t progr_rate,
 			      progress_function * progr_fun)

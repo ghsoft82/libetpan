@@ -208,6 +208,11 @@ int mailimap_uint64_parse(mailstream * fd, MMAPString * buffer, struct mailimap_
 int mailimap_set_parse(mailstream * fd,
   MMAPString * buffer, struct mailimap_parser_context * parser_ctx, size_t * indx, struct mailimap_set ** result);
 
+int mailimap_tag_parse(mailstream * fd, MMAPString * buffer, struct mailimap_parser_context * parser_ctx,
+                       size_t * indx, char ** result,
+                       size_t progr_rate,
+                       progress_function * progr_fun);
+
 LIBETPAN_EXPORT
 int mailimap_hack_date_time_parse(char * str,
                                   struct mailimap_date_time ** result,

@@ -48,6 +48,11 @@ int mailimap_uidplus_parse(int calling_parser, mailstream * fd,
     size_t progr_rate,
     progress_function * progr_fun);
 
+// Exposong mailimap_uid_set_parse
+int mailimap_esort_uid_parse(mailstream * fd, MMAPString * buffer, struct mailimap_parser_context * parser_ctx,
+                                    size_t * indx,
+                                    struct mailimap_set ** result);
+
 #ifdef __cplusplus
 }
 #endif

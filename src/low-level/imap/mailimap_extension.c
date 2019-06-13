@@ -77,7 +77,8 @@ static struct mailimap_extension_api * internal_extension_list[] = {
   &mailimap_extension_enable,
   &mailimap_extension_condstore,
   &mailimap_extension_qresync,
-  &mailimap_extension_sort
+  &mailimap_extension_sort,
+  &mailimap_extension_esort
 };
 
 LIBETPAN_EXPORT

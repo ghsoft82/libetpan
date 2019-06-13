@@ -42,7 +42,9 @@ extern "C" {
   
   LIBETPAN_EXPORT
   extern struct mailimap_extension_api mailimap_extension_sort;
-  
+
+  LIBETPAN_EXPORT
+  extern struct mailimap_extension_api mailimap_extension_esort;
   
   /*
    mailimap_sort()
@@ -66,6 +68,12 @@ extern "C" {
   mailimap_sort(mailimap * session, const char * charset,
                 struct mailimap_sort_key * key, struct mailimap_search_key * searchkey,
                 clist ** result);
+
+  LIBETPAN_EXPORT
+  int
+  mailimap_esort(mailimap * session, const char * charset, const char * esearchReturnStr,
+                 struct mailimap_sort_key * key, struct mailimap_search_key * searchkey,
+                 struct mailimap_set ** result);
   
   /*
    mailimap_uid_sort()
@@ -91,6 +99,12 @@ extern "C" {
   mailimap_uid_sort(mailimap * session, const char * charset,
                     struct mailimap_sort_key * key, struct mailimap_search_key * searchkey,
                     clist ** result);
+
+  LIBETPAN_EXPORT
+  int
+  mailimap_uid_esort(mailimap * session, const char * charset, const char * esearchReturnStr,
+                    struct mailimap_sort_key * key, struct mailimap_search_key * searchkey,
+                    struct mailimap_set ** result);
 
   LIBETPAN_EXPORT
   void mailimap_sort_result_free(clist * search_result);
