@@ -3513,7 +3513,7 @@ struct mailimap_response_info {
   clist * rsp_mailbox_list; /* list of (struct mailimap_mailbox_list *) */
   clist * rsp_mailbox_lsub; /* list of (struct mailimap_mailbox_list *) */
   clist * rsp_search_result; /* list of (uint32_t *) */
-  struct mailimap_mailbox_data_status * rsp_status;
+  clist * rsp_mailbox_list_status; /* list of (struct mailimap_mailbox_data_status *) */
   clist * rsp_expunged; /* list of (uint32_t 32 *) */
   clist * rsp_fetch_list; /* list of (struct mailimap_msg_att *) */
   clist * rsp_extension_list; /* list of (struct mailimap_extension_data *) */

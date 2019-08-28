@@ -3121,6 +3121,88 @@ static int mailimap_status_att_send(mailstream * fd, int * status_att)
 }
 
 /*
+ =>   list-extended   = "LIST" SP mailbox SP list-mailbox SP "RETURN" "(" "CHILDREN" "STATUS" SP "(" status-att *(SP status-att) ")" ")"
+ */
+
+int mailimap_list_extended_send(mailstream * fd,
+                                const char * mb,
+                                const char * list_mb,
+                                struct mailimap_status_att_list * status_att_list)
+{
+  int r;
+
+  r = mailimap_token_send(fd, "LIST");
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_space_send(fd);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_mailbox_send(fd, mb);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_space_send(fd);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_list_mailbox_send(fd, list_mb);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_space_send(fd);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_token_send(fd, "RETURN");
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_space_send(fd);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_oparenth_send(fd);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_token_send(fd, "CHILDREN");
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_space_send(fd);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_token_send(fd, "STATUS");
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_space_send(fd);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_char_send(fd, '(');
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_status_att_list_send(fd, status_att_list);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_char_send(fd, ')');
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_cparenth_send(fd);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  return MAILIMAP_NO_ERROR;
+}
+
+/*
 =>   store           = "STORE" SP set SP store-att-flags
 */
 

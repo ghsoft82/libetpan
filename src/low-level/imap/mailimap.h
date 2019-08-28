@@ -400,6 +400,27 @@ int mailimap_list(mailimap * session, const char * mb,
     const char * list_mb, clist ** result);
 
 /*
+   mailimap_list_extended()
+
+   This function will return the list of the mailbox
+   available on the server with their statuses
+
+   @param session IMAP session
+   @param mb      This is the reference name that informs
+   of the level of hierarchy
+   @param list_mb mailbox name with possible wildcard
+   @param result  This will store a clist of (struct mailimap_mailbox_list *)
+   in (* result)
+
+   @return the return code is one of MAILIMAP_ERROR_XXX or
+   MAILIMAP_NO_ERROR codes
+   */
+
+  LIBETPAN_EXPORT
+  int mailimap_list_extended(mailimap * session, const char * mb,
+                    const char * list_mb, struct mailimap_status_att_list * status_att_list, clist ** result_list, clist ** result_list_status);
+
+/*
    mailimap_login()
 
    This function will authenticate the client.
@@ -462,6 +483,18 @@ int mailimap_lsub(mailimap * session, const char * mb,
 
 LIBETPAN_EXPORT
 void mailimap_list_result_free(clist * list);
+
+
+/*
+ mailimap_list_status_result_free()
+
+ This function will free the clist of (struct mailimap_mailbox_data_status *)
+
+ @param list  This is the clist to free.
+ */
+
+LIBETPAN_EXPORT
+void mailimap_list_status_result_free(clist * list);
 
 /*
    mailimap_rename()
@@ -627,7 +660,7 @@ LIBETPAN_EXPORT
 int
 mailimap_status(mailimap * session, const char * mb,
 		struct mailimap_status_att_list * status_att_list,
-		struct mailimap_mailbox_data_status ** result);
+		clist ** result);
 
 /*
    mailimap_uid_store()

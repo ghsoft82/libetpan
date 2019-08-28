@@ -311,9 +311,7 @@ static void mailbox_data_store(mailimap * session,
 
   case MAILIMAP_MAILBOX_DATA_STATUS:
     if (session->imap_response_info) {
-      if (session->imap_response_info->rsp_status != NULL)
-        mailimap_mailbox_data_status_free(session->imap_response_info->rsp_status);
-      session->imap_response_info->rsp_status = mb_data->mbd_data.mbd_status;
+      r = clist_append(session->imap_response_info->rsp_mailbox_list_status, mb_data->mbd_data.mbd_status);
 #if 0
       if (session->imap_selection_info != NULL) {
         clistiter * cur;
@@ -346,7 +344,11 @@ static void mailbox_data_store(mailimap * session,
 #if 0
       mailimap_mailbox_data_status_free(mb_data->status);
 #endif
-      mb_data->mbd_data.mbd_status = NULL;
+      if (r == 0)
+        mb_data->mbd_data.mbd_status = NULL;
+      else {
+        /* TODO must handle error case */
+      }
     }
     break;
 	
@@ -1580,6 +1582,58 @@ int mailimap_list(mailimap * session, const char * mb,
 }
 
 LIBETPAN_EXPORT
+int mailimap_list_extended(mailimap * session, const char * mb,
+                  const char * list_mb, struct mailimap_status_att_list * status_att_list, clist ** result_list, clist ** result_list_status)
+{
+  struct mailimap_response * response;
+  int r;
+  int error_code;
+
+  if ((session->imap_state != MAILIMAP_STATE_AUTHENTICATED) &&
+      (session->imap_state != MAILIMAP_STATE_SELECTED))
+    return MAILIMAP_ERROR_BAD_STATE;
+
+  r = mailimap_send_current_tag(session);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_list_extended_send(session->imap_stream, mb, list_mb, status_att_list);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  r = mailimap_crlf_send(session->imap_stream);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  if (mailstream_flush(session->imap_stream) == -1)
+    return MAILIMAP_ERROR_STREAM;
+
+  if (mailimap_read_line(session) == NULL)
+    return MAILIMAP_ERROR_STREAM;
+
+  r = mailimap_parse_response(session, &response);
+  if (r != MAILIMAP_NO_ERROR)
+    return r;
+
+  * result_list = session->imap_response_info->rsp_mailbox_list;
+  * result_list_status = session->imap_response_info->rsp_mailbox_list_status;
+  session->imap_response_info->rsp_mailbox_list = NULL;
+  session->imap_response_info->rsp_mailbox_list_status = NULL;
+
+  error_code = response->rsp_resp_done->rsp_data.rsp_tagged->rsp_cond_state->rsp_type;
+
+  mailimap_response_free(response);
+
+  switch (error_code) {
+    case MAILIMAP_RESP_COND_STATE_OK:
+      return MAILIMAP_NO_ERROR;
+
+    default:
+      return MAILIMAP_ERROR_LIST;
+  }
+}
+
+LIBETPAN_EXPORT
 int mailimap_login(mailimap * session,
     const char * userid, const char * password)
 {
@@ -2011,6 +2065,13 @@ void mailimap_list_result_free(clist * list)
 }
 
 LIBETPAN_EXPORT
+void mailimap_list_status_result_free(clist * list)
+{
+  clist_foreach(list, (clist_func) mailimap_mailbox_data_status_free, NULL);
+  clist_free(list);
+}
+
+LIBETPAN_EXPORT
 int mailimap_rename(mailimap * session,
     const char * mb, const char * new_name)
 {
@@ -2147,7 +2208,7 @@ LIBETPAN_EXPORT
 int
 mailimap_status(mailimap * session, const char * mb,
     struct mailimap_status_att_list * status_att_list,
-    struct mailimap_mailbox_data_status ** result)
+    clist ** result)
 {
   struct mailimap_response * response;
   int r;
@@ -2179,8 +2240,8 @@ mailimap_status(mailimap * session, const char * mb,
   if (r != MAILIMAP_NO_ERROR)
     return r;
 
-  * result = session->imap_response_info->rsp_status;
-  session->imap_response_info->rsp_status = NULL;
+  * result = session->imap_response_info->rsp_mailbox_list_status;
+  session->imap_response_info->rsp_mailbox_list_status = NULL;
 
   error_code = response->rsp_resp_done->rsp_data.rsp_tagged->rsp_cond_state->rsp_type;
 

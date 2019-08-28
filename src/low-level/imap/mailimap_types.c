@@ -3178,7 +3178,9 @@ mailimap_response_info_new(void)
   resp_info->rsp_search_result = clist_new();
   if (resp_info->rsp_search_result == NULL)
     goto free_mb_lsub;
-  resp_info->rsp_status = NULL;
+  resp_info->rsp_mailbox_list_status = clist_new();
+  if (resp_info->rsp_mailbox_list_status == NULL)
+    goto free;
   resp_info->rsp_expunged = clist_new();
   if (resp_info->rsp_expunged == NULL)
     goto free_search_result;
@@ -3200,6 +3202,8 @@ mailimap_response_info_new(void)
   clist_free(resp_info->rsp_extension_list);
  free_mb_list:
   clist_free(resp_info->rsp_mailbox_list);
+ free_mb_list_status:
+  clist_free(resp_info->rsp_mailbox_list_status);
  free:
   free(resp_info);
  err:
@@ -3238,8 +3242,11 @@ mailimap_response_info_free(struct mailimap_response_info * resp_info)
   }
   if (resp_info->rsp_search_result != NULL)
     mailimap_mailbox_data_search_free(resp_info->rsp_search_result);
-  if (resp_info->rsp_status != NULL)
-    mailimap_mailbox_data_status_free(resp_info->rsp_status);
+  if (resp_info->rsp_mailbox_list_status != NULL) {
+    clist_foreach(resp_info->rsp_mailbox_list_status,
+                  (clist_func) mailimap_mailbox_data_status_free, NULL);
+    clist_free(resp_info->rsp_mailbox_list_status);
+  }
   if (resp_info->rsp_expunged != NULL) {
     clist_foreach(resp_info->rsp_expunged,
 		   (clist_func) mailimap_number_alloc_free, NULL);

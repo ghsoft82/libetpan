@@ -101,6 +101,11 @@ mailimap_uid_fetch_send(mailstream * fd,
 			struct mailimap_set * set,
 			struct mailimap_fetch_type * fetch_type);
 
+  int mailimap_list_extended_send(mailstream * fd,
+                                  const char * mb,
+                                  const char * list_mb,
+                                  struct mailimap_status_att_list * status_att_list);
+
 int mailimap_list_send(mailstream * fd,
 				const char * mb, const char * list_mb);
 
